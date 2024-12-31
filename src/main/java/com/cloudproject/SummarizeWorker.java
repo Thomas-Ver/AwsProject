@@ -18,7 +18,7 @@ import java.util.Locale;
 
 public class SummarizeWorker implements RequestHandler<S3Event, String> {
   private final AmazonS3 s3Client = AmazonS3ClientBuilder.defaultClient();
-  private static final String OUTPUT_BUCKET = "your-output-bucket-name";
+  private static final String OUTPUT_BUCKET = "summarizeworker2569874";
   
   private static final DateTimeFormatter INPUT_FORMATTER = new DateTimeFormatterBuilder()
     .appendPattern("dd/MM/yyyy hh:mm:ss a")
@@ -123,6 +123,22 @@ public class SummarizeWorker implements RequestHandler<S3Event, String> {
       String sourceBucket = s3Event.getRecords().get(0).getS3().getBucket().getName();
       String sourceKey = s3Event.getRecords().get(0).getS3().getObject().getKey();
       String outputKey = "daily_summary_" + java.time.LocalDate.now() + "_" + sourceKey;
+      
+      try {
+        s3Client.getObjectMetadata(sourceBucket, sourceKey);
+      } catch (AmazonS3Exception e) {
+        if (e.getStatusCode() == 404) {
+          throw new RuntimeException("Object " + sourceKey + " does not exist in bucket " + sourceBucket);
+        }
+        throw e;
+      }
+      
+      if (sourceBucket == null || sourceBucket.isEmpty() || sourceKey == null || sourceKey.isEmpty()) {
+        throw new RuntimeException("Invalid bucket or key in S3 event");
+      }
+      
+      context.getLogger().log("Attempting to access bucket: " + sourceBucket);
+      context.getLogger().log("Attempting to access key: " + sourceKey);
       
       S3Object s3Object = s3Client.getObject(new GetObjectRequest(sourceBucket, sourceKey));
       String processedCsv = processCsv(s3Object.getObjectContent());
